@@ -1,1 +1,37 @@
 
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pro Exchanger</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
+</head>
+<body style="font-family:Arial;text-align:center;">
+
+<h2>Live Rate</h2>
+
+<h3>USDT (BEP20): ৳ <span id="bep20">0</span></h3>
+<h3>USDT (TRC20): ৳ <span id="trc20">0</span></h3>
+<h3>Telegram Star: ৳ <span id="star">0</span></h3>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_DOMAIN",
+    databaseURL: "YOUR_DB_URL",
+    projectId: "YOUR_ID",
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  db.ref("rates").on("value", (snapshot) => {
+    const data = snapshot.val();
+    document.getElementById("bep20").innerText = data.bep20;
+    document.getElementById("trc20").innerText = data.trc20;
+    document.getElementById("star").innerText = data.star;
+  });
+</script>
+
+</body>
+</html>
