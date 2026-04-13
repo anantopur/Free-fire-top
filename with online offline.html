@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProExchanger - Premium Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+    <style>
+        :root { --primary: #7c3aed; --bg: #f8fafc; }
+        body { font-family: 'Hind Siliguri', sans-serif; background: var(--bg); color: #1e1b4b; }
+        .purple-gradient { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); }
+        .glass-card { background: #ffffff; border-radius: 24px; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+        .currency-card.active { border: 2px solid #7c3aed; background: #f5f3ff; }
+        .tab-btn.active { color: #7c3aed; border-bottom: 3px solid #7c3aed; }
+        .hidden { display: none !important; }
+        
+        .scrolling-wrapper { overflow: hidden; white-space: nowrap; width: 100%; }
+        .scrolling-text { display: inline-block; animation: marquee 15s linear infinite; font-weight: 700; }
+        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+
+        #popup-notice { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .popup-box { background: white; width: 90%; max-width: 400px; padding: 25px; border-radius: 24px; text-align: center; animation: zoomIn 0.3s ease; }
+        @keyframes zoomIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        #copy-toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #10b981; color: white; padding: 10px 24px; border-radius: 50px; font-weight: bold; z-index: 10000; transition: 0.3s; opacity: 0; visibility: hidden; }
+        #copy-toast.show { opacity: 1; visibility: visible; bottom: 40px; }
+
+        /* WhatsApp Button Style */
+        .whatsapp-btn { position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 999; transition: 0.3s; }
+        .whatsapp-btn:hover { transform: scale(1.1); }
+    </style>
+</head>
+<body class="pb-10">
+
+    <a id="wa-link" href="#" target="_blank" class="whatsapp-btn hidden">
+        <i class="fab fa-whatsapp"></i>
+    </a>
+
+    <div id="copy-toast">ঠিকানাটি কপি হয়েছে!</div>
+
+    <div id="popup-notice" class="hidden">
+        <div class="popup-box">
+            <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-bell text-2xl"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">জরুরী বিজ্ঞপ্তি</h3>
+            <p id="popup-msg-text" class="text-gray-600 text-sm mb-6">লোড হচ্ছে...</p>
+            <button onclick="closePopup()" class="w-full purple-gradient text-white py-3 rounded-xl font-bold">বুঝেছি</button>
+        </div>
+    </div>
+
+    <header class="p-4 flex justify-between items-center bg-white shadow-sm sticky top-0 z-50">
+        <img id="display-logo" src="https://via.placeholder.com/150x40" class="h-8 object-contain">
+        <div id="user-ctrl" class="hidden">
+             <button onclick="logout()" class="text-red-500 font-bold text-xs bg-red-50 px-3 py-2 rounded-xl">লগ আউট <i class="fas fa-sign-out-alt ml-1"></i></button>
+        </div>
+    </header>
+
+    <div id="status-bar" class="hidden max-w-lg mx-auto mt-3 px-4">
+        <div id="status-bg" class="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit text-[10px] font-black uppercase border">
+            <span class="relative flex h-2 w-2">
+                <span id="status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"></span>
+                <span id="status-dot" class="relative inline-flex rounded-full h-2 w-2"></span>
+            </span>
+            <span id="status-label">Checking...</span>
+        </div>
+    </div>
+
+    <div id="auth-box" class="max-w-md mx-auto p-4 mt-6">
+        <div id="login-ui" class="glass-card p-8">
+            <h2 class="text-2xl font-black text-center mb-6">লগইন করুন</h2>
+            <div class="space-y-4">
+                <input type="email" id="log-email" placeholder="ইমেইল" class="w-full p-4 bg-gray-50 rounded-2xl outline-none border focus:border-purple-400">
+                <input type="password" id="log-pass" placeholder="পাসওয়ার্ড" class="w-full p-4 bg-gray-50 rounded-2xl outline-none border focus:border-purple-400">
+                <button onclick="loginUser()" class="w-full purple-gradient text-white p-4 rounded-2xl font-bold shadow-lg">প্রবেশ করুন</button>
+                <p class="text-center text-sm">নতুন ইউজার? <button onclick="toggleAuth('signup')" class="text-purple-600 font-bold">অ্যাকাউন্ট খুলুন</button></p>
+            </div>
+        </div>
+
+        <div id="signup-ui" class="glass-card p-8 hidden">
+            <h2 class="text-2xl font-black text-center mb-6">নতুন অ্যাকাউন্ট</h2>
+            <div class="space-y-4">
+                <input type="text" id="reg-name" placeholder="পূর্ণ নাম" class="w-full p-4 bg-gray-50 rounded-2xl outline-none border">
+                <input type="email" id="reg-email" placeholder="ইমেইল এড্রেস" class="w-full p-4 bg-gray-50 rounded-2xl outline-none border">
+                <input type="number" id="reg-phone" placeholder="ফোন নম্বর" class="w-full p-4 bg-gray-50 rounded-2xl outline-none border">
+                <input type="password" id="reg-pass" placeholder="পাসওয়ার্ড (৬ ডিজিট)" class="w-full p-4 bg-gray-50 rounded-2xl outline-none border">
+                <button onclick="registerUser()" class="w-full purple-gradient text-white p-4 rounded-2xl font-bold shadow-lg">রেজিস্ট্রেশন করুন</button>
+                <button onclick="toggleAuth('login')" class="w-full text-gray-400 text-sm font-bold">লগইন করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <main id="main-ui" class="max-w-lg mx-auto p-4 hidden">
+        <div class="flex bg-white rounded-2xl mb-6 shadow-sm overflow-hidden border">
+            <button onclick="showTab('exchange')" id="tab-ex" class="tab-btn flex-1 p-4 font-bold active">Exchange</button>
+            <button onclick="showTab('orders')" id="tab-ord" class="tab-btn flex-1 p-4 font-bold">My Orders</button>
+        </div>
+
+        <div id="exchange-page" class="space-y-5">
+            <div class="purple-gradient text-white p-3 rounded-2xl flex items-center gap-3 overflow-hidden">
+                <span class="bg-white text-purple-600 text-[10px] px-2 py-1 rounded-lg font-black uppercase z-10 shadow-sm">Notice</span>
+                <div class="scrolling-wrapper">
+                    <span id="notice-text" class="scrolling-text">লোড হচ্ছে...</span>
+                </div>
+            </div>
+
+            <div class="glass-card p-6">
+                <h2 class="font-bold text-gray-400 text-xs mb-4 uppercase tracking-widest">Select Currency</h2>
+                <div id="currency-list" class="grid grid-cols-2 gap-3 mb-6"></div>
+
+                <div class="space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-2xl border">
+                        <div class="flex justify-between text-[10px] font-bold text-gray-400 mb-1 uppercase">
+                            <span>You Send (USD)</span>
+                            <span id="limit-info">Limit: $0 - $0</span>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="number" id="send-amount" placeholder="0.00" class="w-full bg-transparent text-2xl font-black outline-none">
+                            <span class="font-black text-purple-600">USD</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-purple-50 p-3 rounded-2xl border-2 border-dashed border-purple-200">
+                        <div class="flex justify-between text-[9px] font-bold text-purple-400 mb-1 uppercase">
+                            <span>You Receive (BDT)</span>
+                            <span id="rate-label">Rate: ৳0</span>
+                        </div>
+                        <input type="text" id="receive-amount" readonly class="w-full bg-transparent text-lg font-black text-purple-700 outline-none" value="৳ 0.00">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="selectPayout('Bkash')" class="payout-btn p-3 border rounded-2xl font-bold flex items-center justify-center gap-2 bg-white" id="btn-bkash">
+                            <img id="logo-bkash" src="" class="w-5 h-5 rounded-md hidden"> Bkash
+                        </button>
+                        <button onclick="selectPayout('Nagad')" class="payout-btn p-3 border rounded-2xl font-bold flex items-center justify-center gap-2 bg-white" id="btn-nagad">
+                            <img id="logo-nagad" src="" class="w-5 h-5 rounded-md hidden"> Nagad
+                        </button>
+                    </div>
+
+                    <div id="admin-wallet-info" class="hidden p-4 bg-amber-50 rounded-2xl border border-amber-200 relative">
+                        <p class="text-[10px] font-black text-amber-600 uppercase mb-1">Our Wallet Address</p>
+                        <div class="flex justify-between items-center gap-2">
+                            <p id="admin-address" class="font-mono text-[11px] font-bold break-all text-amber-900"></p>
+                            <button onclick="copyAddress()" class="bg-amber-600 text-white p-2 rounded-lg text-xs flex-shrink-0" id="copy-btn">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <div class="relative">
+                            <i class="fas fa-phone-alt absolute left-4 top-1/2 -translate-y-1/2 text-purple-400"></i>
+                            <input type="text" id="user-phone" placeholder="আপনার বিকাশ/নগদ নম্বর" class="payment-input w-full p-4 pl-12 bg-white rounded-2xl border-2 border-purple-100 outline-none font-bold text-gray-700 transition-all">
+                        </div>
+                        <div class="relative">
+                            <i class="fas fa-receipt absolute left-4 top-1/2 -translate-y-1/2 text-purple-400"></i>
+                            <input type="text" id="user-txid" placeholder="Transaction ID (TxID) বসান" class="payment-input w-full p-4 pl-12 bg-white rounded-2xl border-2 border-purple-100 outline-none font-bold text-gray-700 transition-all">
+                        </div>
+                    </div>
+
+                    <button id="btnSubmit" class="w-full purple-gradient text-white p-5 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition mt-2">Confirm Exchange</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="orders-page" class="hidden space-y-4">
+            <h2 class="text-xl font-black text-purple-800 px-2">Order History</h2>
+            <div id="orders-list-container" class="space-y-3"></div>
+        </div>
+    </main>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8nCScH3eVDJ4boR5YQM-7EAIw0o8UJNU",
+            authDomain: "pro-topup-65b38.firebaseapp.com",
+            databaseURL: "https://pro-topup-65b38-default-rtdb.firebaseio.com",
+            projectId: "pro-topup-65b38",
+            storageBucket: "pro-topup-65b38.firebasestorage.app",
+            messagingSenderId: "841154498324",
+            appId: "1:841154498324:web:7bb321ac5701edd077fc01",
+            measurementId: "G-1PWBNMLSP1"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        let selectedC = null, selectedP = null;
+        let minL = 0, maxL = 0;
+        let isOnline = true;
+
+        function closePopup() { document.getElementById('popup-notice').classList.add('hidden'); }
+
+        function copyAddress() {
+            const addr = document.getElementById('admin-address').innerText;
+            const btn = document.getElementById('copy-btn');
+            const toast = document.getElementById('copy-toast');
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = addr;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.classList.replace('bg-amber-600', 'bg-green-600');
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                btn.innerHTML = originalIcon;
+                btn.classList.replace('bg-green-600', 'bg-amber-600');
+                toast.classList.remove('show');
+            }, 2000);
+        }
+
+        function toggleAuth(mode) {
+            document.getElementById('login-ui').classList.toggle('hidden', mode === 'signup');
+            document.getElementById('signup-ui').classList.toggle('hidden', mode === 'login');
+        }
+
+        async function registerUser() {
+            const name = document.getElementById('reg-name').value, email = document.getElementById('reg-email').value, phone = document.getElementById('reg-phone').value, pass = document.getElementById('reg-pass').value;
+            if(!name || !email || !phone || pass.length < 6) return alert("সব তথ্য দিন");
+            try {
+                const res = await auth.createUserWithEmailAndPassword(email, pass);
+                await db.collection('users').doc(res.user.uid).set({ name, email, phone });
+            } catch(e) { alert(e.message); }
+        }
+
+        async function loginUser() {
+            const email = document.getElementById('log-email').value, pass = document.getElementById('log-pass').value;
+            try { await auth.signInWithEmailAndPassword(email, pass); } catch(e) { alert("লগইন ব্যর্থ হয়েছে"); }
+        }
+
+        function logout() { auth.signOut(); location.reload(); }
+
+        auth.onAuthStateChanged(user => {
+            if(user) {
+                document.getElementById('auth-box').classList.add('hidden');
+                document.getElementById('main-ui').classList.remove('hidden');
+                document.getElementById('user-ctrl').classList.remove('hidden');
+                document.getElementById('status-bar').classList.remove('hidden');
+                document.getElementById('popup-notice').classList.remove('hidden'); 
+                document.getElementById('wa-link').classList.remove('hidden'); // Show WA
+                initApp();
+                loadOrders(user.uid);
+            } else {
+                document.getElementById('auth-box').classList.remove('hidden');
+                document.getElementById('main-ui').classList.add('hidden');
+                document.getElementById('status-bar').classList.add('hidden');
+                document.getElementById('wa-link').classList.add('hidden'); // Hide WA
+            }
+        });
+
+        function showTab(t) {
+            document.getElementById('exchange-page').classList.toggle('hidden', t !== 'exchange');
+            document.getElementById('orders-page').classList.toggle('hidden', t !== 'orders');
+            document.getElementById('tab-ex').classList.toggle('active', t === 'exchange');
+            document.getElementById('tab-ord').classList.toggle('active', t === 'orders');
+        }
+
+        function initApp() {
+            db.collection('settings').doc('app').onSnapshot(doc => {
+                const d = doc.data();
+                document.getElementById('display-logo').src = d.logoApp;
+                document.getElementById('notice-text').innerText = d.notice;
+                document.getElementById('popup-msg-text').innerText = d.notice;
+                document.getElementById('logo-bkash').src = d.logoBkash;
+                document.getElementById('logo-nagad').src = d.logoNagad;
+                document.getElementById('wa-link').href = `https://wa.me/${d.whatsapp}`; // WhatsApp Number
+                
+                minL = d.minLimit; maxL = d.maxLimit;
+                document.getElementById('limit-info').innerText = `Limit: $${minL} - $${maxL}`;
+                
+                isOnline = d.isOnline;
+                const sBg = document.getElementById('status-bg');
+                const sPing = document.getElementById('status-ping');
+                const sDot = document.getElementById('status-dot');
+                const sLabel = document.getElementById('status-label');
+                const submitBtn = document.getElementById('btnSubmit');
+
+                if(isOnline) {
+                    sBg.className = "flex items-center gap-2 px-3 py-1.5 rounded-full w-fit text-[10px] font-black uppercase bg-green-50 text-green-600 border-green-200 border";
+                    sPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-green-400";
+                    sDot.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
+                    sLabel.innerText = "Online - Service Active";
+                } else {
+                    sBg.className = "flex items-center gap-2 px-3 py-1.5 rounded-full w-fit text-[10px] font-black uppercase bg-red-50 text-red-600 border-red-200 border";
+                    sPing.className = "hidden";
+                    sDot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+                    sLabel.innerText = "Offline - Service Paused";
+                }
+            });
+
+            db.collection('currencies').onSnapshot(snap => {
+                const list = document.getElementById('currency-list');
+                list.innerHTML = "";
+                snap.forEach(doc => {
+                    const c = doc.data();
+                    const div = document.createElement('div');
+                    div.className = "currency-card p-3 rounded-2xl flex flex-col items-center shadow-sm border-2 border-transparent cursor-pointer bg-white transition-all";
+                    div.id = `c-${doc.id}`;
+                    div.onclick = () => {
+                        selectedC = c;
+                        document.querySelectorAll('.currency-card').forEach(e => e.classList.remove('active'));
+                        div.classList.add('active');
+                        document.getElementById('rate-label').innerText = `Rate: ৳${c.rate}`;
+                        document.getElementById('admin-wallet-info').classList.remove('hidden');
+                        document.getElementById('admin-address').innerText = c.address;
+                        calc();
+                    };
+                    div.innerHTML = `<img src="${c.image}" class="w-10 h-10 rounded-full object-cover mb-1"><span class="text-xs font-bold">${c.name}</span><span class="text-[10px] text-purple-600 font-bold">৳${c.rate}</span>`;
+                    list.appendChild(div);
+                });
+            });
+        }
+
+        function selectPayout(p) {
+            selectedP = p;
+            document.querySelectorAll('.payout-btn').forEach(e => e.classList.remove('border-purple-600', 'bg-purple-50'));
+            document.getElementById(`btn-${p.toLowerCase()}`).classList.add('border-purple-600', 'bg-purple-50');
+        }
+
+        function calc() {
+            const val = parseFloat(document.getElementById('send-amount').value) || 0;
+            if(selectedC) document.getElementById('receive-amount').value = `৳ ${(val * selectedC.rate).toFixed(2)}`;
+        }
+        document.getElementById('send-amount').oninput = calc;
+
+        document.getElementById('btnSubmit').onclick = async () => {
+            if(!isOnline) return alert("অফলাইন অবস্থায় অর্ডার করা সম্ভব নয়।");
+            
+            const amount = parseFloat(document.getElementById('send-amount').value);
+            const phone = document.getElementById('user-phone').value;
+            const txid = document.getElementById('user-txid').value;
+
+            // কঠোর যাচাইকরণ (Strict Validation)
+            if(!selectedC) return alert("অনুগ্রহ করে একটি কারেন্সি সিলেক্ট করুন।");
+            if(isNaN(amount) || amount <= 0) return alert("অনুগ্রহ করে সঠিক ডলারের পরিমাণ লিখুন।");
+            if(amount < minL || amount > maxL) return alert(`ডলারের পরিমাণ লিমিটের বাইরে ($${minL} - $${maxL})।`);
+            if(!selectedP) return alert("বিকাশ নাকি নগদ তা সিলেক্ট করুন।");
+            if(!phone || phone.length < 11) return alert("সঠিক বিকাশ/নগদ নম্বর দিন।");
+            if(!txid) return alert("Transaction ID (TxID) বসান।");
+
+            try {
+                await db.collection('orders').add({
+                    uid: auth.currentUser.uid,
+                    userEmail: auth.currentUser.email,
+                    methodName: selectedC.name,
+                    amount, payoutMethod: selectedP,
+                    phone, txid, status: "Pending",
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert("অর্ডার সফল!"); showTab('orders');
+                // Reset inputs
+                document.getElementById('send-amount').value = "";
+                document.getElementById('user-phone').value = "";
+                document.getElementById('user-txid').value = "";
+            } catch(e) { alert(e.message); }
+        };
+
+        function loadOrders(uid) {
+            db.collection('orders').where('uid', '==', uid).onSnapshot(snap => {
+                const container = document.getElementById('orders-list-container');
+                let items = [];
+                snap.forEach(doc => items.push(doc.data()));
+                items.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                container.innerHTML = items.length ? "" : "<p class='text-center text-gray-400 mt-10'>No orders found</p>";
+                items.forEach(o => {
+                    const st = o.status === "Pending" ? "bg-orange-100 text-orange-600" : (o.status === "Completed" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600");
+                    const div = document.createElement('div');
+                    div.className = "bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center";
+                    div.innerHTML = `<div><h4 class="font-bold text-sm">${o.methodName} ➔ ${o.payoutMethod}</h4><p class="text-[10px] text-gray-400 font-bold mt-1">$${o.amount} • TxID: ${o.txid}</p></div><span class="text-[10px] px-2 py-1 rounded-full font-black uppercase ${st}">${o.status}</span>`;
+                    container.appendChild(div);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
